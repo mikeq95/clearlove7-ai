@@ -1,12 +1,42 @@
+async function getPostContent(postId) {
+  try {
+    const res = await fetch('https://mikeq95.github.io/blog/rss.xml')
+    const xml = await res.text()
+    const items = xml.split('<item>')
+    for (const item of items) {
+      if (item.includes(postId)) {
+        const contentMatch = item.match(/<content:encoded><!\[CDATA\[([\s\S]*?)\]\]><\/content:encoded>/)
+        if (contentMatch) {
+          return contentMatch[1].replace(/<[^>]+>/g, '').slice(0, 3000)
+        }
+        const descMatch = item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)
+        if (descMatch) {
+          return descMatch[1].replace(/<[^>]+>/g, '').slice(0, 3000)
+        }
+      }
+    }
+  } catch (e) {
+    console.error('RSS fetch failed:', e)
+  }
+  return null
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { word, context, provider, model, apiKey, style, promptPrefix } = req.body
+  const { word, context, postId, provider, model, apiKey, style, promptPrefix } = req.body
 
   if (!word) return res.status(400).json({ error: '缺少 word 参数' })
   if (!apiKey) return res.status(400).json({ error: '缺少 API Key' })
 
-  const prompt = `${promptPrefix || '解释'}以下词语："${word}"${context ? `\n\n上下文：${context}` : ''}\n\n风格：${style || '简洁'}`
+  let articleContent = null
+  if (postId) {
+    articleContent = await getPostContent(postId)
+  }
+
+  const prompt = `${promptPrefix || '解释'}以下词语："${word}"
+${articleContent ? `\n\n文章全文：\n${articleContent}` : context ? `\n\n上下文：${context}` : ''}
+\n\n风格：${style || '简洁'}`
 
   try {
     if (provider === 'deepseek') {

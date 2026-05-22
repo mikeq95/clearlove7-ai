@@ -7,7 +7,7 @@ const BUTTONS = [
   { label: '简单解释', prompt: '用最简单的话解释' },
   { label: '深入解释', prompt: '深入详细地解释' },
   { label: '举例说明', prompt: '用具体例子说明' },
-  { label: '和本文关系', prompt: '结合上下文说明它在文中的含义' },
+  { label: '和本文的关系', prompt: '结合文章全文，说明这个词在本文中的含义和作用' },
   { label: '一句话解释', prompt: '用一句话解释' },
 ]
 
@@ -15,6 +15,7 @@ export default function MainPage() {
   const [searchParams] = useSearchParams()
   const word = searchParams.get('word')
   const context = searchParams.get('context')
+  const postId = searchParams.get('postId')
   const navigate = useNavigate()
   const { openSignIn } = useClerk()
 
@@ -39,7 +40,7 @@ export default function MainPage() {
       return
     }
 
-    const cacheKey = `cache_${word}_${context}_${provider}_${model}_${promptPrefix}`
+    const cacheKey = `cache_${word}_${postId || context}_${provider}_${model}_${promptPrefix}`
     const cached = localStorage.getItem(cacheKey)
     if (cached) {
       setResult(cached)
@@ -55,7 +56,7 @@ export default function MainPage() {
       const res = await fetch('/api/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word, context, provider, model, apiKey, style, promptPrefix })
+        body: JSON.stringify({ word, context, postId, provider, model, apiKey, style, promptPrefix })
       })
 
       if (!res.ok) {
@@ -111,7 +112,13 @@ export default function MainPage() {
         </div>
       </div>
 
-      {context && (
+      {postId && (
+        <p style={{ fontSize: 13, color: '#999', marginBottom: 24, padding: '8px 12px', background: '#f5f5f5', borderRadius: 8 }}>
+          📄 来自文章：{postId}
+        </p>
+      )}
+
+      {!postId && context && (
         <p style={{ fontSize: 13, color: '#999', marginBottom: 24, padding: '8px 12px', background: '#f5f5f5', borderRadius: 8 }}>
           📄 上下文：{context}
         </p>
