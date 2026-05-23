@@ -282,7 +282,9 @@ export default function MainPage() {
 
   const isHome = !word && messages.length === 0
 
-  const InputBox = () => (
+  // Shared input box JSX — inlined directly (NOT as a sub-component) to prevent
+  // React from unmounting/remounting the textarea on every keystroke.
+  const inputBoxJSX = (
     <div style={{ 
       width: '100%', 
       position: 'relative', 
@@ -293,7 +295,7 @@ export default function MainPage() {
       padding: '12px', 
       border: '1px solid var(--border)',
       boxShadow: isHome ? '0 8px 32px rgba(0,0,0,0.06)' : '0 4px 12px rgba(0,0,0,0.04)',
-      transition: 'all 0.3s ease'
+      transition: 'box-shadow 0.3s ease'
     }}>
       <textarea
         ref={textareaRef}
@@ -540,7 +542,7 @@ export default function MainPage() {
               今天想研究什么？
             </h1>
             <div style={{ width: '100%', maxWidth: 768 }}>
-              <InputBox />
+              {inputBoxJSX}
             </div>
           </div>
         ) : (
@@ -597,7 +599,7 @@ export default function MainPage() {
               pointerEvents: 'none' // Let clicks pass through the gradient
             }}>
               <div style={{ width: '100%', maxWidth: 768, pointerEvents: 'auto' }}>
-                <InputBox />
+                {inputBoxJSX}
                 <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-light)', marginTop: 12 }}>
                   Clearlove7 AI can make mistakes. Please verify important information.
                 </div>
