@@ -212,7 +212,7 @@ export default function SettingsPage() {
     claude: ['claude-haiku-4-5', 'claude-sonnet-4-5'],
   }
 
-  // Load saved values
+  // Load saved values on first mount
   useEffect(() => {
     const color = localStorage.getItem('themeColor') || '#3b82f6'
     setThemeColor(color)
@@ -223,18 +223,23 @@ export default function SettingsPage() {
     setProvider(p)
     const savedKey = localStorage.getItem(`apiKey_${p}`) || ''
     setApiKey(savedKey)
-    const m = localStorage.getItem('model') || (p === 'deepseek' ? 'deepseek-chat' : 'claude-haiku-4-5')
-    setModel(m)
+    const savedModel = localStorage.getItem('model')
+    // Only use saved model if it belongs to the saved provider
+    const validModels = p === 'deepseek'
+      ? ['deepseek-chat', 'deepseek-reasoner']
+      : ['claude-haiku-4-5', 'claude-sonnet-4-5']
+    setModel(savedModel && validModels.includes(savedModel) ? savedModel : validModels[0])
     setStyle(localStorage.getItem('style') || '简洁')
   }, [])
 
+  // Sync API key and reset model when provider changes
   useEffect(() => {
     const savedKey = localStorage.getItem(`apiKey_${provider}`) || ''
     setApiKey(savedKey)
     const defaultModel = models[provider][0]
-    setModel(localStorage.getItem('model') || defaultModel)
+    setModel(defaultModel)
     setTestResult(null)
-  }, [provider])
+  }, [provider]) // eslint-disable-line
 
   const handleSave = async () => {
     setSaving(true)
