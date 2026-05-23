@@ -93,3 +93,32 @@ code {
   border-radius: 4px;
 }
 .user-bubble code { background: rgba(255,255,255,0.2); }
+
+/* iMessage bubble tails */
+.user-bubble.has-tail {
+  border-radius: 20px 20px 4px 20px !important;
+}
+.user-bubble.has-tail::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: -8px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid var(--imessage-blue);
+  border-bottom: 8px solid transparent;
+}
+
+.ai-bubble.has-tail {
+  border-radius: 20px 20px 20px 4px !important;
+}
+.ai-bubble.has-tail::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -8px;
+  width: 0;
+  height: 0;
+  border-right: 8px solid #E9E9EB;
+  border-bottom: 8px solid transparent;
+}

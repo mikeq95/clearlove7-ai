@@ -195,7 +195,6 @@ export default function SettingsPage() {
   const [model, setModel] = useState('deepseek-chat')
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
-  const [style, setStyle] = useState('简洁')
   const [themeColor, setThemeColor] = useState('#3b82f6')
   const [hexInput, setHexInput] = useState('#3b82f6')
 
@@ -229,7 +228,6 @@ export default function SettingsPage() {
       ? ['deepseek-chat', 'deepseek-reasoner']
       : ['claude-haiku-4-5', 'claude-sonnet-4-5']
     setModel(savedModel && validModels.includes(savedModel) ? savedModel : validModels[0])
-    setStyle(localStorage.getItem('style') || '简洁')
   }, [])
 
   // Sync API key and reset model when provider changes
@@ -246,7 +244,6 @@ export default function SettingsPage() {
     localStorage.setItem(`apiKey_${provider}`, apiKey)
     localStorage.setItem('provider', provider)
     localStorage.setItem('model', model)
-    localStorage.setItem('style', style)
     localStorage.setItem('themeColor', themeColor)
     document.documentElement.style.setProperty('--accent', themeColor)
     await new Promise(r => setTimeout(r, 300)) // tiny visual delay
@@ -262,7 +259,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: '测试' }], word: '测试', provider, model, apiKey, style })
+        body: JSON.stringify({ messages: [{ role: 'user', content: '测试' }], word: '测试', provider, model, apiKey })
       })
       setTestResult(res.ok ? { ok: true, message: '连接成功' } : { ok: false, message: 'Key 无效，请检查' })
     } catch {
@@ -454,15 +451,6 @@ export default function SettingsPage() {
                   <div>
                     <SectionHeader title="通用" />
                     <Divider />
-                    <SettingRow
-                      label="默认解释风格"
-                      description="AI 回答时使用的默认语气和详细程度"
-                      control={
-                        <select value={style} onChange={e => setStyle(e.target.value)} style={selectSt}>
-                          {['简洁', '详细', '类比', '学术'].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      }
-                    />
                     <div style={{ display: 'flex', gap: 10, marginTop: 28, paddingTop: 20, borderTop: '1px solid #ebe8df' }}>
                       <button onClick={handleSave}
                         style={{ padding: '9px 22px', borderRadius: 9, border: 'none', background: '#232323', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>

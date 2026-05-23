@@ -3,6 +3,8 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { SignedIn, SignedOut, UserButton, useClerk, useUser } from '@clerk/clerk-react'
 import ReactMarkdown from 'react-markdown'
 import { ArrowUp, Plus, PanelLeft, MessageSquare, Star, Search, Settings } from 'lucide-react'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import {
   createConversation, findOrCreateWordConv,
   getMessages, saveMessages, getRecentConversations
@@ -69,6 +71,34 @@ function formatTimestamp(ts) {
   return `${d.getMonth() + 1}月${d.getDate()}日 ${timeStr}`
 }
 
+// ─── Copy Button Component ────────────────────────────────────────────────────
+function CopyButton({ code }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      style={{
+        position: 'absolute', top: 8, right: 8,
+        padding: '3px 10px', borderRadius: 6, border: '1px solid #ddd',
+        background: copied ? '#e6f4ea' : '#f5f5f5',
+        color: copied ? '#2e7d32' : '#555',
+        fontSize: 12, cursor: 'pointer', transition: 'all 0.2s',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif'
+      }}
+    >
+      {copied ? '已复制 ✓' : '复制'}
+    </button>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MainPage() {
   const [searchParams] = useSearchParams()
@@ -85,26 +115,23 @@ export default function MainPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   
-  // Sidebar state
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [recents, setRecents] = useState([])
   
   const currentConvId = useRef(null)
-  const messagesEndRef = useRef(null)
+  const scrollContainerRef = useRef(null)
   const textareaRef = useRef(null)
 
   const provider = localStorage.getItem('provider') || 'deepseek'
   const model = localStorage.getItem('model') || 'deepseek-chat'
 
-  // Load sidebar recents
   const refreshRecents = useCallback(() => {
     setRecents(getRecentConversations(20))
   }, [])
 
   useEffect(() => { refreshRecents() }, [])
 
-  // ── Word-explanation mode & Initialization ──
   useEffect(() => {
     if (!word) {
       setMessages([])
@@ -126,9 +153,12 @@ export default function MainPage() {
     }
   }, [word, postId]) // eslint-disable-line
 
+  // 只在 loading 结束后滚到底部
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (!loading) {
+      scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
+    }
+  }, [loading])
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -139,7 +169,6 @@ export default function MainPage() {
 
   // ── API Call ──
   const sendToAPI = async (currentMessages, convId) => {
-    const style = localStorage.getItem('style') || '简洁'
     const apiKey = localStorage.getItem(`apiKey_${provider}`) || ''
 
     if (!apiKey) {
@@ -150,7 +179,6 @@ export default function MainPage() {
     setLoading(true)
     setError(null)
     
-    // Determine dynamic system prompt
     const systemPromptWord = `你是一个阅读辅助助手，帮助用户理解文章中不熟悉的词语或概念。
 
 用户正在阅读一篇文章，点击了其中一个词语来问你。
@@ -178,7 +206,7 @@ export default function MainPage() {
         body: JSON.stringify({
           messages: currentMessages.map(m => ({ role: m.role, content: m.content })),
           word: word || currentMessages[currentMessages.length - 1]?.content || '',
-          context, postId, provider, model, apiKey, style, systemPrompt
+          context, postId, provider, model, apiKey, systemPrompt
         })
       })
 
@@ -229,6 +257,10 @@ export default function MainPage() {
     }
 
     sendToAPI(updatedMessages, convId)
+
+    setTimeout(() => {
+      scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
+    }, 0)
   }
 
   const handleKeyDown = (e) => {
@@ -308,7 +340,9 @@ export default function MainPage() {
           </div>
 
           <div style={{ padding: '0 12px', flex: 1, overflowY: 'auto' }}>
-            {filteredRecents.length === 0 ? <div style={{ padding: '8px', fontSize: 13, color: 'var(--text-light)' }}>No conversations yet</div> : filteredRecents.map(conv => (
+            {filteredRecents.length === 0
+              ? <div style={{ padding: '8px', fontSize: 13, color: 'var(--text-light)' }}>No conversations yet</div>
+              : filteredRecents.map(conv => (
               <div key={conv.id}
                 onClick={() => {
                   if (conv.source === 'word' && conv.word) {
@@ -356,7 +390,6 @@ export default function MainPage() {
       {/* ── Main Chat Area ── */}
       <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
         
-        {/* Open Sidebar Button */}
         {!isSidebarOpen && (
           <button onClick={() => setIsSidebarOpen(true)}
             style={{
@@ -368,7 +401,7 @@ export default function MainPage() {
           </button>
         )}
 
-        {/* Top Nav Bar (Blur) */}
+        {/* Top Nav Bar */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
           height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -384,8 +417,11 @@ export default function MainPage() {
         </div>
 
         {/* Message List */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '76px 16px 100px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ maxWidth: 800, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
+        <div 
+          ref={scrollContainerRef}
+          style={{ flex: 1, overflowY: 'auto', padding: '76px 16px 100px', display: 'flex', flexDirection: 'column' }}
+        >
+<div style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 72px', display: 'flex', flexDirection: 'column' }}>
             
             {messages.length === 0 && !word && (
               <div style={{ textAlign: 'center', marginTop: '30vh', color: 'var(--text-light)', fontSize: 15 }}>
@@ -396,35 +432,26 @@ export default function MainPage() {
             {groupedMessages.map((group, gIdx) => (
               <div key={gIdx} style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
                 
-                {/* Timestamp */}
                 {group.showTimestamp && (
                   <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-light)', margin: '16px 0 12px', fontWeight: 500 }}>
                     {formatTimestamp(group.timestamp)}
                   </div>
                 )}
 
-                {/* Message Group */}
                 {group.messages.map((msg, mIdx) => {
                   const isUser = msg.role === 'user'
                   const isLastInGroup = mIdx === group.messages.length - 1
-                  
-                  // iMessage UI: Corners & Tails
-                  const radiusTopLeft = 20
-                  const radiusTopRight = 20
-                  const radiusBottomLeft = isUser ? 20 : (isLastInGroup ? 4 : 20)
-                  const radiusBottomRight = isUser ? (isLastInGroup ? 4 : 20) : 20
-                  const borderRadius = `${radiusTopLeft}px ${radiusTopRight}px ${radiusBottomRight}px ${radiusBottomLeft}px`
-                  
-                  // Gap: 6px between different messages usually, but same sender consecutive = 2px
-                  // Handled by mapping spacing below
                   const marginBottom = isLastInGroup ? 0 : 2
+                  const bubbleClass = isUser ? 'user-bubble' : 'ai-bubble'
+                  const tailClass = isLastInGroup ? ' has-tail' : ''
 
                   return (
                     <div key={mIdx} className="bubble-enter" style={{ 
                       display: 'flex', 
                       justifyContent: isUser ? 'flex-end' : 'flex-start',
-                      marginBottom: marginBottom,
-                      alignItems: 'flex-end'
+                      marginBottom,
+                      alignItems: 'flex-end',
+                      width: '100%'
                     }}>
                       
                       {/* AI Avatar */}
@@ -436,11 +463,11 @@ export default function MainPage() {
                         </div>
                       )}
 
-                      <div className={isUser ? "user-bubble" : ""} style={{
+                      <div className={`${bubbleClass}${tailClass}`} style={{
                         background: isUser ? 'var(--imessage-blue)' : '#E9E9EB',
                         color: isUser ? '#FFFFFF' : '#000000',
                         padding: '8px 16px',
-                        borderRadius: borderRadius,
+                        borderRadius: '20px',
                         maxWidth: '70%',
                         wordBreak: 'break-word',
                         position: 'relative'
@@ -456,7 +483,31 @@ export default function MainPage() {
                             {isUser ? (
                               <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
                             ) : (
-                              <ReactMarkdown>{msg.content}</ReactMarkdown>
+                              <ReactMarkdown
+                                components={{
+                                  code({ node, inline, className, children, ...props }) {
+                                    const match = /language-(\w+)/.exec(className || '')
+                                    const codeString = String(children).replace(/\n$/, '')
+                                    return !inline && match ? (
+                                      <div style={{ position: 'relative' }}>
+                                        <CopyButton code={codeString} />
+                                        <SyntaxHighlighter
+                                          style={oneLight}
+                                          language={match[1]}
+                                          PreTag="div"
+                                          {...props}
+                                        >
+                                          {codeString}
+                                        </SyntaxHighlighter>
+                                      </div>
+                                    ) : (
+                                      <code className={className} {...props}>{children}</code>
+                                    )
+                                  }
+                                }}
+                              >
+                                {msg.content}
+                              </ReactMarkdown>
                             )}
                           </div>
                         )}
@@ -487,7 +538,6 @@ export default function MainPage() {
                 </div>
               </div>
             )}
-            <div ref={messagesEndRef} style={{ height: 1 }} />
           </div>
         </div>
 
@@ -497,8 +547,7 @@ export default function MainPage() {
           background: 'var(--bottom-bar)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
           padding: '10px 16px 24px', display: 'flex', justifyContent: 'center'
         }}>
-          <div style={{ maxWidth: 800, width: '100%', display: 'flex', alignItems: 'flex-end', gap: 12 }}>
-            
+<div style={{ maxWidth: 1500, width: '100%', padding: '0 72px', display: 'flex', alignItems: 'flex-end', gap: 12 }}>
             <button style={{ 
               width: 32, height: 32, borderRadius: '50%', background: '#D1D1D6', color: '#fff',
               border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -517,11 +566,12 @@ export default function MainPage() {
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="iMessage"
+                placeholder="发消息…"
                 style={{
                   flex: 1, background: 'transparent', border: 'none', outline: 'none',
                   fontSize: 16, lineHeight: '24px', padding: '4px 0', minHeight: 24, maxHeight: 120,
-                  resize: 'none', color: '#000', fontFamily: 'inherit', marginTop: 2
+                  resize: 'none', color: '#000', fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif',
+                  marginTop: 2
                 }}
                 rows={1}
               />
@@ -533,7 +583,7 @@ export default function MainPage() {
                   background: !inputValue.trim() || loading ? '#E5E5EA' : 'var(--imessage-blue)',
                   color: '#fff', cursor: !inputValue.trim() || loading ? 'default' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, marginLeft: 8, transition: 'background 0.2s'
+                  flexShrink: 0, marginLeft: 8, transition: 'background 0.2s', marginBottom: 6
                 }}
               >
                 <ArrowUp size={16} strokeWidth={3} />

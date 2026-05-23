@@ -24,7 +24,7 @@ async function getPostContent(postId) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { messages, word, context, postId, provider, model, apiKey, style, systemPrompt } = req.body
+  const { messages, word, context, postId, provider, model, apiKey, systemPrompt } = req.body
 
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: '缺少 messages 参数' })
   if (!apiKey) return res.status(400).json({ error: '缺少 API Key' })
@@ -39,10 +39,6 @@ export default async function handler(req, res) {
     finalSystemPrompt += `\n\n文章全文：\n${articleContent}`
   } else if (context) {
     finalSystemPrompt += `\n\n上下文：${context}`
-  }
-  
-  if (style && word) {
-    finalSystemPrompt += `\n请根据以下风格进行回答：${style}。`
   }
 
   try {
