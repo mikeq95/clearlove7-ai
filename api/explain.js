@@ -24,9 +24,9 @@ async function getPostContent(postId) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { word, context, postId, provider, model, apiKey, style, promptPrefix } = req.body
+  const { messages, word, context, postId, provider, model, apiKey, style } = req.body
 
-  if (!word) return res.status(400).json({ error: '缺少 word 参数' })
+  if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: '缺少 messages 参数' })
   if (!apiKey) return res.status(400).json({ error: '缺少 API Key' })
 
   let articleContent = null
@@ -34,12 +34,30 @@ export default async function handler(req, res) {
     articleContent = await getPostContent(postId)
   }
 
-  const prompt = `${promptPrefix || '解释'}以下词语："${word}"
-${articleContent ? `\n\n文章全文：\n${articleContent}` : context ? `\n\n上下文：${context}` : ''}
-\n\n风格：${style || '简洁'}`
+  const systemPrompt = `你是一个阅读辅助助手，帮助用户理解文章中不熟悉的词语或概念。
+当前正在解释的词语是："${word}"。
+${articleContent ? `文章全文：\n${articleContent}` : context ? `上下文：${context}` : ''}
+请根据以下风格进行回答：${style || '简洁'}。
+回答规则：
+1. 先简要给出该词语的通用定义
+2. 再结合文章内容，说明这个词在本文语境中的具体含义、用途或作用
+3. 如果文章内容与该词高度相关，可以适当展开说明技术细节
+4. 语言简洁清晰，适当使用编号列表`
 
   try {
     if (provider === 'deepseek') {
+      let apiMessages = messages;
+      if (model === 'deepseek-reasoner') {
+        // deepseek-reasoner 不支持 system role，需要将其合并到第一个 user message 中
+        const firstMessage = messages[0];
+        apiMessages = [
+          { role: 'user', content: systemPrompt + '\n\n' + firstMessage.content },
+          ...messages.slice(1)
+        ];
+      } else {
+        apiMessages = [{ role: 'system', content: systemPrompt }, ...messages];
+      }
+
       const response = await fetch('https://api.deepseek.com/chat/completions', {
         method: 'POST',
         headers: {
@@ -49,7 +67,7 @@ ${articleContent ? `\n\n文章全文：\n${articleContent}` : context ? `\n\n上
         body: JSON.stringify({
           model,
           stream: true,
-          messages: [{ role: 'user', content: prompt }]
+          messages: apiMessages
         })
       })
 
@@ -90,7 +108,8 @@ ${articleContent ? `\n\n文章全文：\n${articleContent}` : context ? `\n\n上
           model,
           max_tokens: 1024,
           stream: true,
-          messages: [{ role: 'user', content: prompt }]
+          system: systemPrompt,
+          messages
         })
       })
 
