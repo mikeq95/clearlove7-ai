@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   /* iMessage Colors */
   --imessage-blue: #0B93F6;

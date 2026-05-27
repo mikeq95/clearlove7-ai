@@ -1,111 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
-import { SignedIn, SignedOut, UserButton, useClerk, useUser } from '@clerk/clerk-react'
+import { useState, useEffect } from 'react'
+import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
 import {
-  PanelLeft, Plus, Search, MessageSquare, Star, FolderClosed, Settings,
-  Eye, EyeOff, Check, Loader2, ChevronRight
+  PanelLeft, Settings,
+  Eye, EyeOff, Check, Loader2
 } from 'lucide-react'
-
-// ─── Shared Sidebar (mirrors MainPage) ──────────────────────────────────────
-function Sidebar({ isSidebarOpen, setIsSidebarOpen }) {
-  const navigate = useNavigate()
-  const { openSignIn } = useClerk()
-  const { user } = useUser()
-  const [searchQuery, setSearchQuery] = useState('')
-
-  const navItem = (icon, label, onClick, active = false) => (
-    <div
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '8px', borderRadius: 8, cursor: 'pointer',
-        color: active ? '#232323' : '#6f6f68',
-        fontSize: 14, fontWeight: active ? 500 : 400,
-        background: active ? '#efeee9' : 'transparent',
-        transition: 'background 0.15s',
-        userSelect: 'none'
-      }}
-      onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#efeee9' }}
-      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
-    >
-      <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        {icon}
-      </div>
-      {label}
-    </div>
-  )
-
-  return (
-    <div style={{
-      width: isSidebarOpen ? 260 : 0,
-      transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1)',
-      backgroundColor: '#f7f7f4',
-      flexShrink: 0,
-      borderRight: isSidebarOpen ? '1px solid #e8e5dc' : 'none',
-      overflow: 'hidden'
-    }}>
-      <div style={{ width: 260, display: 'flex', flexDirection: 'column', height: '100%' }}>
-
-        {/* Logo */}
-        <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, fontFamily: 'Georgia, serif', color: '#232323' }}>
-            Clearlove7
-          </h2>
-          <button onClick={() => setIsSidebarOpen(false)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#6f6f68', display: 'flex' }}>
-            <PanelLeft size={18} />
-          </button>
-        </div>
-
-        {/* Primary actions */}
-        <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {navItem(<div style={{ width: 20, height: 20, borderRadius: '50%', background: '#dedbd2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={12} /></div>, 'New chat', () => navigate('/'))}
-          {navItem(<MessageSquare size={16} />, 'Chats', () => {})}
-          {navItem(<Star size={16} />, 'Starred', () => {})}
-          {navItem(<FolderClosed size={16} />, 'Projects', () => {})}
-        </div>
-
-        {/* Search */}
-        <div style={{ padding: '16px 12px 8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', background: '#fff', border: '1px solid #ebe8df', borderRadius: 8 }}>
-            <Search size={13} color="#6f6f68" />
-            <input
-              type="text" placeholder="Search history..."
-              value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              style={{ border: 'none', outline: 'none', background: 'transparent', marginLeft: 8, width: '100%', fontSize: 13, color: '#232323' }}
-            />
-          </div>
-        </div>
-
-        <div style={{ padding: '0 20px 8px' }}>
-          <h3 style={{ fontSize: 11, color: '#6f6f68', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Recents</h3>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
-          <SignedOut>
-            <div style={{ padding: '0 8px', color: '#6f6f68', fontSize: 13 }}>
-              <p style={{ margin: '0 0 10px' }}>Sign in to save history</p>
-              <button onClick={() => openSignIn()} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #ebe8df', background: '#fff', color: '#232323', cursor: 'pointer', fontSize: 13, width: '100%' }}>
-                Log in / Sign up
-              </button>
-            </div>
-          </SignedOut>
-        </div>
-
-        {/* Bottom user area */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #e8e5dc', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <SignedIn>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <UserButton />
-              <span style={{ fontSize: 14, color: '#232323', fontWeight: 500 }}>{user?.firstName || 'User'}</span>
-            </div>
-          </SignedIn>
-          {navItem(<Settings size={15} />, '', () => {}, true /* active = settings page */)}
-        </div>
-      </div>
-    </div>
-  )
-}
+import Sidebar from '../components/Sidebar'
 
 // ─── Toast component ──────────────────────────────────────────────────────────
 function Toast({ message, type = 'success', onDone }) {
@@ -208,7 +108,8 @@ export default function SettingsPage() {
 
   const models = {
     deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-    claude: ['claude-haiku-4-5', 'claude-sonnet-4-5'],
+    claude: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6'],
+    glm: ['glm-4v-flash', 'glm-4-flash'],
   }
 
   // Load saved values on first mount
@@ -224,9 +125,7 @@ export default function SettingsPage() {
     setApiKey(savedKey)
     const savedModel = localStorage.getItem('model')
     // Only use saved model if it belongs to the saved provider
-    const validModels = p === 'deepseek'
-      ? ['deepseek-chat', 'deepseek-reasoner']
-      : ['claude-haiku-4-5', 'claude-sonnet-4-5']
+    const validModels = models[p] ?? models.deepseek
     setModel(savedModel && validModels.includes(savedModel) ? savedModel : validModels[0])
   }, [])
 
@@ -261,7 +160,12 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: [{ role: 'user', content: '测试' }], word: '测试', provider, model, apiKey })
       })
-      setTestResult(res.ok ? { ok: true, message: '连接成功' } : { ok: false, message: 'Key 无效，请检查' })
+      if (res.ok) {
+        setTestResult({ ok: true, message: '连接成功' })
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setTestResult({ ok: false, message: data.error || 'Key 无效，请检查' })
+      }
     } catch {
       setTestResult({ ok: false, message: '网络请求失败' })
     }
@@ -362,7 +266,11 @@ export default function SettingsPage() {
                       description="选择提供 AI 服务的厂商"
                       control={
                         <SegmentedControl
-                          options={[{ value: 'deepseek', label: 'DeepSeek' }, { value: 'claude', label: 'Claude' }]}
+                          options={[
+                            { value: 'deepseek', label: 'DeepSeek' },
+                            { value: 'claude', label: 'Claude' },
+                            { value: 'glm', label: 'GLM' },
+                          ]}
                           value={provider} onChange={setProvider}
                         />
                       }
@@ -379,7 +287,7 @@ export default function SettingsPage() {
                     <SettingRow
                       label="API Key"
                       description={
-                        <span>Key 仅保存在本机浏览器，不会上传至任何服务器。
+                        <span>Key 保存在本地浏览器，仅在发起请求时传输至你自己的 Vercel 函数，不会被第三方存储。
                           {!apiKey && <span style={{ color: '#b45309', marginLeft: 6 }}>尚未填写</span>}
                         </span>
                       }
@@ -389,7 +297,11 @@ export default function SettingsPage() {
                             type={showKey ? 'text' : 'password'}
                             value={apiKey}
                             onChange={e => setApiKey(e.target.value)}
-                            placeholder={`${provider === 'deepseek' ? 'sk-...' : 'sk-ant-...'}`}
+                            placeholder={
+                              provider === 'deepseek' ? 'sk-...' :
+                              provider === 'claude' ? 'sk-ant-...' :
+                              'your-glm-api-key'
+                            }
                             style={{ ...inputSt, width: '100%', paddingRight: 40, fontFamily: showKey ? 'var(--mono)' : 'inherit', fontSize: showKey ? 13 : 14 }}
                             onFocus={e => e.target.style.borderColor = 'var(--accent)'}
                             onBlur={e => e.target.style.borderColor = '#dedbd2'}
