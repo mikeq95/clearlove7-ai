@@ -23,6 +23,8 @@ export default function MainPage() {
 
   const currentConvId = useRef(null)
   const scrollContainerRef = useRef(null)
+  // true = user is at (or near) the bottom; auto-scroll is allowed
+  const isNearBottomRef = useRef(true)
 
   const { messages, setMessages, loading, error, setError, sendToAPI } = useChat({
     word,
@@ -30,6 +32,23 @@ export default function MainPage() {
     postId,
     onSaved: () => setSidebarRefreshKey(k => k + 1),
   })
+
+  // Track whether the user has scrolled away from the bottom
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const onScroll = () => {
+      isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Scroll to bottom whenever messages change — but only if user was already near the bottom
+  useEffect(() => {
+    if (!isNearBottomRef.current) return
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
+  }, [messages])
 
   // Auto-trigger explanation when a word param arrives
   useEffect(() => {
@@ -47,6 +66,7 @@ export default function MainPage() {
 
     const cached = getMessages(convId)
     if (cached.length > 0) {
+      isNearBottomRef.current = true
       setMessages(cached)
     } else {
       const initial = { role: 'user', content: `请解释：${word}`, timestamp: Date.now() }
@@ -54,13 +74,6 @@ export default function MainPage() {
       sendToAPI([initial], convId)
     }
   }, [word, postId]) // eslint-disable-line
-
-  // Scroll to bottom after streaming finishes
-  useEffect(() => {
-    if (!loading) {
-      scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
-    }
-  }, [loading])
 
   const handleSend = ({ text, image } = {}) => {
     if (!text?.trim() && !image) return
@@ -71,6 +84,8 @@ export default function MainPage() {
       timestamp: Date.now(),
     }
     const updatedMessages = [...messages, userMsg]
+    // User just sent — always snap back to bottom
+    isNearBottomRef.current = true
     setMessages(updatedMessages)
 
     let convId = currentConvId.current
@@ -81,9 +96,6 @@ export default function MainPage() {
     }
 
     sendToAPI(updatedMessages, convId)
-    setTimeout(() => {
-      scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
-    }, 0)
   }
 
   const handleConversationSelect = useCallback((conv) => {
@@ -100,6 +112,8 @@ export default function MainPage() {
     } else {
       currentConvId.current = conv.id
       setActiveConvId(conv.id)
+      // Always scroll to bottom when switching conversations
+      isNearBottomRef.current = true
       setMessages(getMessages(conv.id))
       navigate('/')
     }
