@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
-import {
-  PanelLeft, Settings,
-  Eye, EyeOff, Check, Loader2
-} from 'lucide-react'
+import { PanelLeft, Eye, EyeOff, Check, Loader2 } from 'lucide-react'
 import Sidebar from '../components/Sidebar'
 
-// ─── Toast component ──────────────────────────────────────────────────────────
+// ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ message, type = 'success', onDone }) {
   useEffect(() => {
     const t = setTimeout(onDone, 2500)
@@ -29,10 +26,8 @@ function Toast({ message, type = 'success', onDone }) {
   )
 }
 
-// ─── Divider ─────────────────────────────────────────────────────────────────
 const Divider = () => <div style={{ borderTop: '1px solid #ebe8df', margin: '0' }} />
 
-// ─── SettingRow ───────────────────────────────────────────────────────────────
 function SettingRow({ label, description, control, last = false }) {
   return (
     <>
@@ -51,16 +46,6 @@ function SettingRow({ label, description, control, last = false }) {
   )
 }
 
-// ─── Section Header ───────────────────────────────────────────────────────────
-function SectionHeader({ title }) {
-  return (
-    <div style={{ fontSize: 13, fontWeight: 600, color: '#6f6f68', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 0, paddingBottom: 12 }}>
-      {title}
-    </div>
-  )
-}
-
-// ─── Segmented Control ────────────────────────────────────────────────────────
 function SegmentedControl({ options, value, onChange }) {
   return (
     <div style={{ display: 'flex', border: '1px solid #dedbd2', borderRadius: 10, overflow: 'hidden', background: '#faf9f5' }}>
@@ -89,22 +74,15 @@ function SegmentedControl({ options, value, onChange }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const navigate = useNavigate()
-
-  // Settings state
   const [provider, setProvider] = useState('deepseek')
   const [model, setModel] = useState('deepseek-chat')
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
-  const [themeColor, setThemeColor] = useState('#3b82f6')
-  const [hexInput, setHexInput] = useState('#3b82f6')
-
-  // UI state
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const [activeSection, setActiveSection] = useState('model')
   const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState(null) // { ok: bool, message: string }
+  const [testResult, setTestResult] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState(null) // { message, type }
+  const [toast, setToast] = useState(null)
 
   const models = {
     deepseek: ['deepseek-chat', 'deepseek-reasoner'],
@@ -112,29 +90,18 @@ export default function SettingsPage() {
     glm: ['glm-4v-flash', 'glm-4-flash'],
   }
 
-  // Load saved values on first mount
   useEffect(() => {
-    const color = localStorage.getItem('themeColor') || '#3b82f6'
-    setThemeColor(color)
-    setHexInput(color)
-    document.documentElement.style.setProperty('--accent', color)
-
     const p = localStorage.getItem('provider') || 'deepseek'
     setProvider(p)
-    const savedKey = localStorage.getItem(`apiKey_${p}`) || ''
-    setApiKey(savedKey)
+    setApiKey(localStorage.getItem(`apiKey_${p}`) || '')
     const savedModel = localStorage.getItem('model')
-    // Only use saved model if it belongs to the saved provider
     const validModels = models[p] ?? models.deepseek
     setModel(savedModel && validModels.includes(savedModel) ? savedModel : validModels[0])
   }, [])
 
-  // Sync API key and reset model when provider changes
   useEffect(() => {
-    const savedKey = localStorage.getItem(`apiKey_${provider}`) || ''
-    setApiKey(savedKey)
-    const defaultModel = models[provider][0]
-    setModel(defaultModel)
+    setApiKey(localStorage.getItem(`apiKey_${provider}`) || '')
+    setModel(models[provider][0])
     setTestResult(null)
   }, [provider]) // eslint-disable-line
 
@@ -143,9 +110,7 @@ export default function SettingsPage() {
     localStorage.setItem(`apiKey_${provider}`, apiKey)
     localStorage.setItem('provider', provider)
     localStorage.setItem('model', model)
-    localStorage.setItem('themeColor', themeColor)
-    document.documentElement.style.setProperty('--accent', themeColor)
-    await new Promise(r => setTimeout(r, 300)) // tiny visual delay
+    await new Promise(r => setTimeout(r, 300))
     setSaving(false)
     setToast({ message: '设置已保存', type: 'success' })
   }
@@ -172,42 +137,22 @@ export default function SettingsPage() {
     setTesting(false)
   }
 
-  const handleHexInput = (val) => {
-    setHexInput(val)
-    if (/^#[0-9a-fA-F]{6}$/.test(val)) {
-      setThemeColor(val)
-      document.documentElement.style.setProperty('--accent', val)
-    }
-  }
-
-  const navSections = [
-    { id: 'general', label: '通用' },
-    { id: 'model', label: '模型与 API' },
-    { id: 'appearance', label: '外观' },
-    { id: 'account', label: '账户' },
-  ]
-
-  // ── Input shared styles ──
   const inputSt = {
     padding: '9px 13px', borderRadius: 9,
     border: '1px solid #dedbd2', fontSize: 14,
     background: '#fff', color: '#232323', outline: 'none',
     width: '100%', boxSizing: 'border-box',
-    fontFamily: 'inherit',
-    transition: 'border-color 0.15s'
+    fontFamily: 'inherit', transition: 'border-color 0.15s'
   }
   const selectSt = { ...inputSt, width: 'auto', minWidth: 240, cursor: 'pointer', appearance: 'auto' }
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', fontFamily: 'var(--sans)', background: '#faf9f5', overflow: 'hidden' }}>
 
-      {/* Global Sidebar */}
       <Sidebar isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
 
-      {/* Main Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
-        {/* Sidebar toggle (when closed) */}
         <button onClick={() => setIsSidebarOpen(true)}
           style={{
             position: 'absolute', top: 16, left: 16, background: 'none', border: 'none',
@@ -219,231 +164,114 @@ export default function SettingsPage() {
         </button>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ maxWidth: 1060, margin: '0 auto', padding: '64px 48px 96px' }}>
+          <div style={{ maxWidth: 680, margin: '0 auto', padding: '64px 48px 96px' }}>
 
-            {/* Page title */}
             <div style={{ marginBottom: 40 }}>
               <h1 style={{ fontSize: 26, fontWeight: 600, color: '#232323', margin: '0 0 4px', fontFamily: 'Georgia, serif' }}>设置</h1>
-              <p style={{ margin: 0, fontSize: 14, color: '#6f6f68' }}>管理你的 AI 配置与个人偏好</p>
+              <p style={{ margin: 0, fontSize: 14, color: '#6f6f68' }}>管理你的 AI 配置</p>
             </div>
 
-            {/* Two-column layout */}
-            <div style={{ display: 'flex', gap: 48, alignItems: 'flex-start' }}>
+            <Divider />
 
-              {/* ── Left nav ── */}
-              <div style={{ width: 200, flexShrink: 0 }}>
-                {navSections.map(sec => (
-                  <div
-                    key={sec.id}
-                    onClick={() => setActiveSection(sec.id)}
-                    style={{
-                      padding: '9px 14px', borderRadius: 9, cursor: 'pointer',
-                      fontSize: 15, fontWeight: activeSection === sec.id ? 500 : 400,
-                      color: activeSection === sec.id ? '#232323' : '#6f6f68',
-                      background: activeSection === sec.id ? '#efeee9' : 'transparent',
-                      marginBottom: 2, transition: 'background 0.15s',
-                      userSelect: 'none'
-                    }}
-                    onMouseEnter={e => { if (activeSection !== sec.id) e.currentTarget.style.background = '#efeee9' }}
-                    onMouseLeave={e => { if (activeSection !== sec.id) e.currentTarget.style.background = 'transparent' }}
-                  >
-                    {sec.label}
-                  </div>
-                ))}
+            <SettingRow
+              label="AI 供应商"
+              description="选择提供 AI 服务的厂商"
+              control={
+                <SegmentedControl
+                  options={[
+                    { value: 'deepseek', label: 'DeepSeek' },
+                    { value: 'claude', label: 'Claude' },
+                    { value: 'glm', label: 'GLM' },
+                  ]}
+                  value={provider} onChange={setProvider}
+                />
+              }
+            />
+            <SettingRow
+              label="模型"
+              description="当前供应商下使用的具体模型版本"
+              control={
+                <select value={model} onChange={e => setModel(e.target.value)} style={selectSt}>
+                  {models[provider].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              }
+            />
+            <SettingRow
+              label="API Key"
+              description={
+                <span>
+                  Key 保存在本地浏览器，仅在发起请求时传输至你自己的 Vercel 函数，不会被第三方存储。
+                  {!apiKey && <span style={{ color: '#b45309', marginLeft: 6 }}>尚未填写</span>}
+                </span>
+              }
+              control={
+                <div style={{ position: 'relative', width: 320 }}>
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={e => setApiKey(e.target.value)}
+                    placeholder={
+                      provider === 'deepseek' ? 'sk-...' :
+                      provider === 'claude' ? 'sk-ant-...' :
+                      'your-glm-api-key'
+                    }
+                    style={{ ...inputSt, paddingRight: 40, fontFamily: showKey ? 'var(--mono)' : 'inherit', fontSize: showKey ? 13 : 14 }}
+                    onFocus={e => e.target.style.borderColor = '#232323'}
+                    onBlur={e => e.target.style.borderColor = '#dedbd2'}
+                  />
+                  <button onClick={() => setShowKey(v => !v)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#6f6f68', display: 'flex' }}>
+                    {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              }
+              last
+            />
+
+            {testResult && (
+              <div style={{
+                padding: '10px 14px', borderRadius: 9, fontSize: 13, marginTop: 4, marginBottom: 8,
+                background: testResult.ok ? '#f0fdf4' : '#fef2f2',
+                color: testResult.ok ? '#166534' : '#b91c1c',
+                border: `1px solid ${testResult.ok ? '#bbf7d0' : '#fecaca'}`
+              }}>
+                {testResult.ok ? '✓ ' : '✗ '}{testResult.message}
               </div>
+            )}
 
-              {/* ── Right content ── */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-
-                {/* ╔═ Model & API ═╗ */}
-                {activeSection === 'model' && (
-                  <div>
-                    <SectionHeader title="模型与 API" />
-                    <Divider />
-
-                    <SettingRow
-                      label="AI 供应商"
-                      description="选择提供 AI 服务的厂商"
-                      control={
-                        <SegmentedControl
-                          options={[
-                            { value: 'deepseek', label: 'DeepSeek' },
-                            { value: 'claude', label: 'Claude' },
-                            { value: 'glm', label: 'GLM' },
-                          ]}
-                          value={provider} onChange={setProvider}
-                        />
-                      }
-                    />
-                    <SettingRow
-                      label="模型"
-                      description="当前供应商下使用的具体模型版本"
-                      control={
-                        <select value={model} onChange={e => setModel(e.target.value)} style={selectSt}>
-                          {models[provider].map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                      }
-                    />
-                    <SettingRow
-                      label="API Key"
-                      description={
-                        <span>Key 保存在本地浏览器，仅在发起请求时传输至你自己的 Vercel 函数，不会被第三方存储。
-                          {!apiKey && <span style={{ color: '#b45309', marginLeft: 6 }}>尚未填写</span>}
-                        </span>
-                      }
-                      control={
-                        <div style={{ position: 'relative', width: 320 }}>
-                          <input
-                            type={showKey ? 'text' : 'password'}
-                            value={apiKey}
-                            onChange={e => setApiKey(e.target.value)}
-                            placeholder={
-                              provider === 'deepseek' ? 'sk-...' :
-                              provider === 'claude' ? 'sk-ant-...' :
-                              'your-glm-api-key'
-                            }
-                            style={{ ...inputSt, width: '100%', paddingRight: 40, fontFamily: showKey ? 'var(--mono)' : 'inherit', fontSize: showKey ? 13 : 14 }}
-                            onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                            onBlur={e => e.target.style.borderColor = '#dedbd2'}
-                          />
-                          <button onClick={() => setShowKey(v => !v)}
-                            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#6f6f68', display: 'flex' }}>
-                            {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
-                          </button>
-                        </div>
-                      }
-                    />
-
-                    {/* Test connection result */}
-                    {testResult && (
-                      <div style={{
-                        padding: '10px 14px', borderRadius: 9, fontSize: 13, marginTop: 4, marginBottom: 8,
-                        background: testResult.ok ? '#f0fdf4' : '#fef2f2',
-                        color: testResult.ok ? '#166534' : '#b91c1c',
-                        border: `1px solid ${testResult.ok ? '#bbf7d0' : '#fecaca'}`
-                      }}>
-                        {testResult.ok ? '✓ ' : '✗ '}{testResult.message}
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: 10, marginTop: 28, paddingTop: 20, borderTop: '1px solid #ebe8df' }}>
-                      <button
-                        onClick={testConnection}
-                        disabled={!apiKey || testing}
-                        style={{
-                          padding: '9px 18px', borderRadius: 9, border: '1px solid #dedbd2',
-                          background: '#fff', color: '#232323', cursor: !apiKey || testing ? 'not-allowed' : 'pointer',
-                          fontSize: 14, fontWeight: 500, opacity: !apiKey || testing ? 0.5 : 1,
-                          display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s'
-                        }}
-                      >
-                        {testing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-                        {testing ? '测试中...' : '测试连接'}
-                      </button>
-                      <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        style={{
-                          padding: '9px 22px', borderRadius: 9, border: 'none',
-                          background: '#232323', color: '#fff', cursor: saving ? 'default' : 'pointer',
-                          fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
-                          opacity: saving ? 0.7 : 1, transition: 'all 0.15s'
-                        }}
-                      >
-                        {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-                        {saving ? '保存中...' : '保存设置'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* ╔═ General ═╗ */}
-                {activeSection === 'general' && (
-                  <div>
-                    <SectionHeader title="通用" />
-                    <Divider />
-                    <div style={{ display: 'flex', gap: 10, marginTop: 28, paddingTop: 20, borderTop: '1px solid #ebe8df' }}>
-                      <button onClick={handleSave}
-                        style={{ padding: '9px 22px', borderRadius: 9, border: 'none', background: '#232323', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
-                        保存设置
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* ╔═ Appearance ═╗ */}
-                {activeSection === 'appearance' && (
-                  <div>
-                    <SectionHeader title="外观" />
-                    <Divider />
-                    <SettingRow
-                      label="主题颜色"
-                      description="用于强调色、按钮、用户气泡等界面元素"
-                      control={
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ position: 'relative', width: 36, height: 36, borderRadius: 9, overflow: 'hidden', border: '1px solid #dedbd2', flexShrink: 0 }}>
-                            <input
-                              type="color" value={themeColor}
-                              onChange={e => { setThemeColor(e.target.value); setHexInput(e.target.value); document.documentElement.style.setProperty('--accent', e.target.value) }}
-                              style={{ position: 'absolute', inset: '-4px', width: 'calc(100% + 8px)', height: 'calc(100% + 8px)', cursor: 'pointer', border: 'none', padding: 0 }}
-                            />
-                          </div>
-                          <input
-                            type="text" value={hexInput}
-                            onChange={e => handleHexInput(e.target.value)}
-                            style={{ ...inputSt, width: 110, fontFamily: 'var(--mono)', fontSize: 13 }}
-                            onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                            onBlur={e => e.target.style.borderColor = '#dedbd2'}
-                          />
-                          {/* Color presets */}
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            {['#3b82f6', '#7c3aed', '#0f766e', '#b45309', '#be185d', '#334155'].map(c => (
-                              <button key={c} onClick={() => { setThemeColor(c); setHexInput(c); document.documentElement.style.setProperty('--accent', c) }}
-                                style={{ width: 22, height: 22, borderRadius: '50%', background: c, border: themeColor === c ? '2px solid #232323' : '2px solid transparent', cursor: 'pointer', padding: 0, flexShrink: 0 }} />
-                            ))}
-                          </div>
-                        </div>
-                      }
-                      last
-                    />
-                    <div style={{ display: 'flex', gap: 10, marginTop: 28, paddingTop: 20, borderTop: '1px solid #ebe8df' }}>
-                      <button onClick={handleSave}
-                        style={{ padding: '9px 22px', borderRadius: 9, border: 'none', background: '#232323', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
-                        保存设置
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* ╔═ Account ═╗ */}
-                {activeSection === 'account' && (
-                  <div>
-                    <SectionHeader title="账户" />
-                    <Divider />
-                    <SignedIn>
-                      <SettingRow
-                        label="账户管理"
-                        description="查看和管理你的登录账号、安全设置"
-                        control={<UserButton />}
-                        last
-                      />
-                    </SignedIn>
-                    <SignedOut>
-                      <div style={{ padding: '32px 0', color: '#6f6f68', fontSize: 14 }}>
-                        <p style={{ margin: '0 0 16px' }}>登录后可保存对话历史和个人偏好设置</p>
-                      </div>
-                    </SignedOut>
-                  </div>
-                )}
-
-              </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 28, paddingTop: 20, borderTop: '1px solid #ebe8df' }}>
+              <button
+                onClick={testConnection}
+                disabled={!apiKey || testing}
+                style={{
+                  padding: '9px 18px', borderRadius: 9, border: '1px solid #dedbd2',
+                  background: '#fff', color: '#232323', cursor: !apiKey || testing ? 'not-allowed' : 'pointer',
+                  fontSize: 14, fontWeight: 500, opacity: !apiKey || testing ? 0.5 : 1,
+                  display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s'
+                }}
+              >
+                {testing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+                {testing ? '测试中...' : '测试连接'}
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                style={{
+                  padding: '9px 22px', borderRadius: 9, border: 'none',
+                  background: '#232323', color: '#fff', cursor: saving ? 'default' : 'pointer',
+                  fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
+                  opacity: saving ? 0.7 : 1, transition: 'all 0.15s'
+                }}
+              >
+                {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+                {saving ? '保存中...' : '保存设置'}
+              </button>
             </div>
+
           </div>
         </div>
       </div>
 
-      {/* Toast */}
       {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
 
       <style>{`

@@ -121,3 +121,13 @@ export function getStarredConversations() {
 export function getRecentConversations(n = 20) {
   return getConversations().slice(0, n)
 }
+
+/** Rename a conversation */
+export function renameConversation(id, newTitle) {
+  const list = getConversations()
+  const idx = list.findIndex(c => c.id === id)
+  if (idx === -1) return
+  list[idx].title = newTitle.trim().slice(0, 60)
+  list[idx].updatedAt = Date.now()
+  saveConversations(list)
+}
