@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { PanelLeft } from 'lucide-react'
+import { PanelLeft, ArrowDown } from 'lucide-react'
 import { createConversation, findOrCreateWordConv, getMessages } from '../lib/conversations'
 import Sidebar from '../components/Sidebar'
 import MessageList from '../components/MessageList'
@@ -23,8 +23,9 @@ export default function MainPage() {
 
   const currentConvId = useRef(null)
   const scrollContainerRef = useRef(null)
-  // true = user is at (or near) the bottom; auto-scroll is allowed
-  const isNearBottomRef = useRef(true)
+  const isNearBottomRef = useRef(true)   // sync ref: used inside effects to avoid stale closure
+  const touchStartYRef = useRef(0)
+  const [isNearBottom, setIsNearBottom] = useState(true) // state: drives the scroll-to-bottom button
 
   const { messages, setMessages, loading, error, setError, sendToAPI } = useChat({
     word,
@@ -33,22 +34,59 @@ export default function MainPage() {
     onSaved: () => setSidebarRefreshKey(k => k + 1),
   })
 
-  // Track whether the user has scrolled away from the bottom
+  // Wire up scroll tracking. Key insight: wheel fires synchronously before scroll,
+  // so setting the ref here stops the next messages-effect from auto-scrolling
+  // before the browser even paints the scroll position change.
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
+
     const onScroll = () => {
-      isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+      const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+      isNearBottomRef.current = near
+      setIsNearBottom(near)
     }
+
+    // Upward wheel → immediately kill auto-scroll (synchronous, no race)
+    const onWheel = (e) => {
+      if (e.deltaY < 0) {
+        isNearBottomRef.current = false
+        setIsNearBottom(false)
+      }
+    }
+
+    // Touch equivalent for mobile
+    const onTouchStart = (e) => { touchStartYRef.current = e.touches[0].clientY }
+    const onTouchMove = (e) => {
+      if (e.touches[0].clientY > touchStartYRef.current) {
+        isNearBottomRef.current = false
+        setIsNearBottom(false)
+      }
+    }
+
     el.addEventListener('scroll', onScroll, { passive: true })
-    return () => el.removeEventListener('scroll', onScroll)
+    el.addEventListener('wheel', onWheel, { passive: true })
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+    }
   }, [])
 
-  // Scroll to bottom whenever messages change — but only if user was already near the bottom
+  // Scroll to bottom on new content — only if user is still at the bottom
   useEffect(() => {
     if (!isNearBottomRef.current) return
     scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
   }, [messages])
+
+  const scrollToBottom = () => {
+    isNearBottomRef.current = true
+    setIsNearBottom(true)
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' })
+  }
 
   // Auto-trigger explanation when a word param arrives
   useEffect(() => {
@@ -86,6 +124,7 @@ export default function MainPage() {
     const updatedMessages = [...messages, userMsg]
     // User just sent — always snap back to bottom
     isNearBottomRef.current = true
+    setIsNearBottom(true)
     setMessages(updatedMessages)
 
     let convId = currentConvId.current
@@ -114,6 +153,7 @@ export default function MainPage() {
       setActiveConvId(conv.id)
       // Always scroll to bottom when switching conversations
       isNearBottomRef.current = true
+      setIsNearBottom(true)
       setMessages(getMessages(conv.id))
       navigate('/')
     }
@@ -168,6 +208,17 @@ export default function MainPage() {
           user={user}
           scrollRef={scrollContainerRef}
         />
+
+        {/* Scroll-to-bottom button: appears when user scrolls up during streaming */}
+        {!isNearBottom && loading && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute z-20 flex items-center justify-center w-8 h-8 rounded-full bg-white border border-[var(--border)] shadow-md cursor-pointer text-[var(--text-light)] hover:text-black transition-colors"
+            style={{ bottom: 100, right: 24 }}
+          >
+            <ArrowDown size={16} />
+          </button>
+        )}
 
         <ChatInput loading={loading} onSend={handleSend} />
       </div>
