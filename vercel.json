@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/chats", "destination": "/index.html" },
+    { "source": "/starred", "destination": "/index.html" },
+    { "source": "/settings", "destination": "/index.html" },
+    { "source": "/sign-in", "destination": "/index.html" }
+  ]
+}

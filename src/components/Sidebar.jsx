@@ -48,7 +48,13 @@ export default function Sidebar({
 
   const refresh = () => setRecents(getRecentConversations(20))
 
-  useEffect(() => { refresh() }, [refreshKey])
+  // Re-reads the conversation list whenever the parent bumps refreshKey
+  // (e.g. after a message is saved) — a real external-source re-sync, not a
+  // one-time mount read, so a lazy useState initializer can't replace this.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refresh()
+  }, [refreshKey])
 
   const filteredRecents = useMemo(
     () => recents.filter(c => (c.title || '').toLowerCase().includes(searchQuery.toLowerCase())),
@@ -62,7 +68,7 @@ export default function Sidebar({
       if (conv.source === 'word' && conv.word) {
         navigate(`/?word=${encodeURIComponent(conv.word)}${conv.postId ? `&postId=${conv.postId}` : ''}`)
       } else {
-        navigate('/')
+        navigate('/', { state: { convId: conv.id } })
       }
     }
   }
@@ -73,6 +79,7 @@ export default function Sidebar({
   }
 
   const handleDelete = (id) => {
+    if (!window.confirm('删除这条对话？')) return
     deleteConversation(id)
     refresh()
     if (activeConvId === id) onConversationSelect?.(null)

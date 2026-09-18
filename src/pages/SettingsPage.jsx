@@ -1,14 +1,31 @@
 import { useState, useEffect } from 'react'
-import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
-import { useNavigate } from 'react-router-dom'
 import { PanelLeft, Eye, EyeOff, Check, Loader2 } from 'lucide-react'
 import Sidebar from '../components/Sidebar'
 
+const MODELS = {
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+  claude: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6'],
+  glm: ['glm-4v-flash', 'glm-4-flash'],
+  kimi: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'moonshot-v1-8k-vision-preview'],
+  qwen: ['qwen-plus', 'qwen-turbo', 'qwen-vl-plus', 'qwen-vl-max'],
+}
+
+const KEY_PLACEHOLDERS = {
+  deepseek: 'sk-...',
+  claude: 'sk-ant-...',
+  glm: 'your-glm-api-key',
+  kimi: 'sk-...',
+  qwen: 'sk-...',
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ message, type = 'success', onDone }) {
+  // Mount-once timer: onDone is a fresh closure on every parent render, so it's
+  // deliberately excluded — including it would restart the timer on every render.
   useEffect(() => {
     const t = setTimeout(onDone, 2500)
     return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
     <div style={{
@@ -73,7 +90,6 @@ function SegmentedControl({ options, value, onChange }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const navigate = useNavigate()
   const [provider, setProvider] = useState('deepseek')
   const [model, setModel] = useState('deepseek-chat')
   const [apiKey, setApiKey] = useState('')
@@ -84,26 +100,26 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
 
-  const models = {
-    deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-    claude: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6'],
-    glm: ['glm-4v-flash', 'glm-4-flash'],
-  }
-
+  // Hydrates from localStorage on mount — legitimately a one-time sync from an
+  // external source, not a React value, so it can't be a lazy useState initializer
+  // (there are three fields to derive together).
   useEffect(() => {
     const p = localStorage.getItem('provider') || 'deepseek'
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProvider(p)
     setApiKey(localStorage.getItem(`apiKey_${p}`) || '')
     const savedModel = localStorage.getItem('model')
-    const validModels = models[p] ?? models.deepseek
+    const validModels = MODELS[p] ?? MODELS.deepseek
     setModel(savedModel && validModels.includes(savedModel) ? savedModel : validModels[0])
   }, [])
 
+  // Re-syncs whenever the user switches provider in the segmented control.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setApiKey(localStorage.getItem(`apiKey_${provider}`) || '')
-    setModel(models[provider][0])
+    setModel(MODELS[provider][0])
     setTestResult(null)
-  }, [provider]) // eslint-disable-line
+  }, [provider])
 
   const handleSave = async () => {
     setSaving(true)
@@ -182,6 +198,8 @@ export default function SettingsPage() {
                     { value: 'deepseek', label: 'DeepSeek' },
                     { value: 'claude', label: 'Claude' },
                     { value: 'glm', label: 'GLM' },
+                    { value: 'kimi', label: 'Kimi' },
+                    { value: 'qwen', label: 'Qwen' },
                   ]}
                   value={provider} onChange={setProvider}
                 />
@@ -192,7 +210,7 @@ export default function SettingsPage() {
               description="当前供应商下使用的具体模型版本"
               control={
                 <select value={model} onChange={e => setModel(e.target.value)} style={selectSt}>
-                  {models[provider].map(m => <option key={m} value={m}>{m}</option>)}
+                  {MODELS[provider].map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               }
             />
@@ -210,11 +228,7 @@ export default function SettingsPage() {
                     type={showKey ? 'text' : 'password'}
                     value={apiKey}
                     onChange={e => setApiKey(e.target.value)}
-                    placeholder={
-                      provider === 'deepseek' ? 'sk-...' :
-                      provider === 'claude' ? 'sk-ant-...' :
-                      'your-glm-api-key'
-                    }
+                    placeholder={KEY_PLACEHOLDERS[provider]}
                     style={{ ...inputSt, paddingRight: 40, fontFamily: showKey ? 'var(--mono)' : 'inherit', fontSize: showKey ? 13 : 14 }}
                     onFocus={e => e.target.style.borderColor = '#232323'}
                     onBlur={e => e.target.style.borderColor = '#dedbd2'}

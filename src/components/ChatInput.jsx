@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { ArrowUp, Plus, X } from 'lucide-react'
+import { ArrowUp, Plus, X, Square } from 'lucide-react'
 
-const VISION_PROVIDERS = ['claude', 'glm']
+const VISION_PROVIDERS = ['claude', 'glm', 'kimi', 'qwen']
 
 function supportsImages() {
   return VISION_PROVIDERS.includes(localStorage.getItem('provider') || 'deepseek')
@@ -11,8 +11,9 @@ function supportsImages() {
  * props:
  *   loading   boolean
  *   onSend    ({ text, image? }) => void
+ *   onStop    () => void — aborts an in-flight response
  */
-export default function ChatInput({ loading, onSend }) {
+export default function ChatInput({ loading, onSend, onStop }) {
   const [inputValue, setInputValue] = useState('')
   const [imagePreview, setImagePreview] = useState(null) // base64 data-URL
   const [imageError, setImageError] = useState('')
@@ -48,7 +49,7 @@ export default function ChatInput({ loading, onSend }) {
 
   const handlePlusClick = () => {
     if (!supportsImages()) {
-      setImageError('当前模型不支持图片，请在设置中切换到 Claude 或 GLM')
+      setImageError('当前模型不支持图片，请在设置中切换到支持图片的供应商')
       setTimeout(() => setImageError(''), 3000)
       return
     }
@@ -143,15 +144,25 @@ export default function ChatInput({ loading, onSend }) {
                 marginTop: 2,
               }}
             />
-            <button
-              onClick={handleSend}
-              disabled={!canSend}
-              className={`w-[26px] h-[26px] rounded-full border-none flex items-center justify-center flex-shrink-0 ml-2 mb-1.5 transition-colors duration-200 ${
-                canSend ? 'cursor-pointer bg-[var(--imessage-blue)]' : 'cursor-default bg-[#E5E5EA]'
-              }`}
-            >
-              <ArrowUp size={16} strokeWidth={3} color="#fff" />
-            </button>
+            {loading ? (
+              <button
+                onClick={onStop}
+                title="停止生成"
+                className="w-[26px] h-[26px] rounded-full border-none flex items-center justify-center flex-shrink-0 ml-2 mb-1.5 cursor-pointer bg-[#232323] transition-colors duration-200"
+              >
+                <Square size={11} strokeWidth={0} fill="#fff" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!canSend}
+                className={`w-[26px] h-[26px] rounded-full border-none flex items-center justify-center flex-shrink-0 ml-2 mb-1.5 transition-colors duration-200 ${
+                  canSend ? 'cursor-pointer bg-[var(--imessage-blue)]' : 'cursor-default bg-[#E5E5EA]'
+                }`}
+              >
+                <ArrowUp size={16} strokeWidth={3} color="#fff" />
+              </button>
+            )}
           </div>
         </div>
       </div>

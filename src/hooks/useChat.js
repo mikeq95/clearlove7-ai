@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { saveMessages } from '../lib/conversations'
+import { createReasoningStreamParser } from '../lib/streamParser'
 
 const SYSTEM_PROMPT_WORD = `你是一个阅读辅助助手，帮助用户理解文章中不熟悉的词语或概念。
 
@@ -27,6 +28,19 @@ export function useChat({ word, context, postId, onSaved } = {}) {
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const controllerRef = useRef(null)
+
+  const persistFinal = useCallback((convId) => {
+    let persisted = true
+    setMessages(prev => {
+      if (convId) persisted = saveMessages(convId, prev)
+      return prev
+    })
+    if (convId && !persisted) {
+      setError('本地存储空间已满，这条回复未能保存，建议在"所有对话"里清理一些旧对话')
+    }
+    onSaved?.()
+  }, [onSaved])
 
   const sendToAPI = useCallback(async (currentMessages, convId) => {
     const provider = localStorage.getItem('provider') || 'deepseek'
@@ -42,6 +56,8 @@ export function useChat({ word, context, postId, onSaved } = {}) {
     setError(null)
 
     const systemPrompt = word ? SYSTEM_PROMPT_WORD : SYSTEM_PROMPT_CHAT
+    const controller = new AbortController()
+    controllerRef.current = controller
 
     setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }])
 
@@ -49,6 +65,7 @@ export function useChat({ word, context, postId, onSaved } = {}) {
       const res = await fetch('/api/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           messages: currentMessages.map(m => ({
             role: m.role,
@@ -69,31 +86,47 @@ export function useChat({ word, context, postId, onSaved } = {}) {
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
+      const parser = createReasoningStreamParser()
       let full = ''
+      let fullReasoning = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        full += decoder.decode(value)
-        setMessages(prev => {
-          const next = [...prev]
-          next[next.length - 1] = { ...next[next.length - 1], content: full }
-          return next
-        })
+        const { content, reasoning } = parser.feed(decoder.decode(value, { stream: true }))
+        if (content) full += content
+        if (reasoning) fullReasoning += reasoning
+        if (content || reasoning) {
+          setMessages(prev => {
+            const next = [...prev]
+            next[next.length - 1] = {
+              ...next[next.length - 1],
+              content: full,
+              ...(fullReasoning ? { reasoning: fullReasoning } : {}),
+            }
+            return next
+          })
+        }
       }
 
-      setMessages(prev => {
-        if (convId) saveMessages(convId, prev)
-        return prev
-      })
-      onSaved?.()
+      persistFinal(convId)
     } catch (e) {
-      setError(e.message)
-      setMessages(prev => prev.slice(0, -1))
+      if (e.name === 'AbortError') {
+        // User hit "stop" — keep whatever was streamed so far instead of discarding it.
+        persistFinal(convId)
+      } else {
+        setError(e.message)
+        setMessages(prev => prev.slice(0, -1))
+      }
     }
 
+    controllerRef.current = null
     setLoading(false)
-  }, [word, context, postId, onSaved])
+  }, [word, context, postId, persistFinal])
 
-  return { messages, setMessages, loading, error, setError, sendToAPI }
+  const stop = useCallback(() => {
+    controllerRef.current?.abort()
+  }, [])
+
+  return { messages, setMessages, loading, error, setError, sendToAPI, stop }
 }

@@ -6,7 +6,7 @@
  * Messages: localStorage['conv_messages_${id}'] = JSON.stringify(Message[])
  *
  * ConversationMeta: { id, title, source, word, postId, starred, createdAt, updatedAt }
- * Message: { role: 'user'|'assistant', content: string }
+ * Message: { role: 'user'|'assistant', content: string, reasoning?: string }
  */
 
 const STORE_KEY = 'conversations'
@@ -26,9 +26,20 @@ export function getConversations() {
   }
 }
 
-/** Write the full metadata list back */
+/** Write a key/value pair, swallowing quota/storage errors. Returns whether it succeeded. */
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value)
+    return true
+  } catch (e) {
+    console.error(`localStorage write failed for "${key}":`, e)
+    return false
+  }
+}
+
+/** Write the full metadata list back. Returns whether it succeeded. */
 function saveConversations(list) {
-  localStorage.setItem(STORE_KEY, JSON.stringify(list))
+  return safeSetItem(STORE_KEY, JSON.stringify(list))
 }
 
 /**
@@ -72,15 +83,17 @@ export function getMessages(id) {
   }
 }
 
-/** Save/overwrite messages for a conversation, also bumps updatedAt */
+/** Save/overwrite messages for a conversation, also bumps updatedAt. Returns whether it persisted. */
 export function saveMessages(id, messages) {
-  localStorage.setItem(`conv_messages_${id}`, JSON.stringify(messages))
+  const ok = safeSetItem(`conv_messages_${id}`, JSON.stringify(messages))
+  if (!ok) return false
   const list = getConversations()
   const idx = list.findIndex(c => c.id === id)
   if (idx !== -1) {
     list[idx].updatedAt = Date.now()
     saveConversations(list)
   }
+  return true
 }
 
 /** Toggle the starred flag for a conversation. Returns new starred value. */

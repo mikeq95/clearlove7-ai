@@ -17,26 +17,35 @@ async function getPostContent(postId) {
   return null
 }
 
-// Stream SSE response → plain text chunks to the client
-async function streamOpenAI(response, res, extractText) {
+// Stream SSE response → newline-delimited JSON chunks to the client.
+// Each line is either {"c": "<content delta>"} or {"r": "<reasoning delta>"}.
+// JSON.stringify escapes any literal newline inside the text itself, so
+// splitting the outer stream on a raw "\n" byte is always unambiguous.
+async function streamOpenAI(response, res, extractors) {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.setHeader('Transfer-Encoding', 'chunked')
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
+  let lineBuffer = ''
 
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    const chunk = decoder.decode(value)
-    for (const line of chunk.split('\n')) {
+    lineBuffer += decoder.decode(value, { stream: true })
+    const lines = lineBuffer.split('\n')
+    lineBuffer = lines.pop()
+    for (const line of lines) {
       if (!line.startsWith('data: ')) continue
       const data = line.slice(6)
       if (data === '[DONE]') continue
       try {
-        const text = extractText(JSON.parse(data))
-        if (text) res.write(text)
-      } catch {}
+        const json = JSON.parse(data)
+        const r = extractors.reasoning?.(json)
+        const c = extractors.content?.(json)
+        if (r) res.write(JSON.stringify({ r }) + '\n')
+        if (c) res.write(JSON.stringify({ c }) + '\n')
+      } catch { /* ignore */ }
     }
   }
   res.end()
@@ -57,6 +66,34 @@ function toOpenAIMessage(msg) {
   return { role: msg.role, content: parts }
 }
 
+// Providers that speak the OpenAI chat-completions format as-is (message
+// shape, SSE delta shape, image_url content parts) — only the endpoint URL
+// differs, so they share one handler.
+const OPENAI_COMPATIBLE_ENDPOINTS = {
+  glm: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', // 智谱 AI
+  kimi: 'https://api.moonshot.cn/v1/chat/completions', // Moonshot AI
+  qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', // 阿里云百炼
+}
+
+async function handleOpenAICompatible(endpoint, { messages, model, apiKey, finalSystemPrompt, res }) {
+  const apiMessages = [
+    ...(finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }] : []),
+    ...messages.map(toOpenAIMessage),
+  ]
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, stream: true, max_tokens: 4096, messages: apiMessages }),
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    return res.status(response.status).json({ error: err?.error?.message || 'Key 无效，请检查' })
+  }
+  return streamOpenAI(response, res, {
+    content: json => json.choices?.[0]?.delta?.content,
+  })
+}
+
 function toClaudeMessage(msg) {
   if (!msg.image) return { role: msg.role, content: msg.content }
   // Extract mime type and base64 data from the data-URL
@@ -70,13 +107,44 @@ function toClaudeMessage(msg) {
   return { role: msg.role, content: parts }
 }
 
+const MAX_MESSAGES = 100
+const MAX_CONTENT_LENGTH = 20000
+const MAX_IMAGE_LENGTH = 7_000_000 // base64 of a 5MB file is ~6.7MB
+const MAX_KEY_LENGTH = 300
+
+// Same-origin check: reject cross-site callers, but allow requests with no
+// Origin header (some non-browser/older-browser same-origin requests omit it).
+function isAllowedOrigin(req) {
+  const origin = req.headers.origin
+  if (!origin) return true
+  try {
+    return new URL(origin).host === req.headers.host
+  } catch {
+    return false
+  }
+}
+
+function validateMessages(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return '缺少 messages 参数'
+  if (messages.length > MAX_MESSAGES) return '对话过长，请开启新对话'
+  for (const m of messages) {
+    if (typeof m.content === 'string' && m.content.length > MAX_CONTENT_LENGTH) return '消息内容过长'
+    if (m.image && (typeof m.image !== 'string' || m.image.length > MAX_IMAGE_LENGTH)) return '图片过大'
+  }
+  return null
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
+  if (!isAllowedOrigin(req)) return res.status(403).json({ error: '请求来源不允许' })
 
-  const { messages, word, context, postId, provider, model, apiKey, systemPrompt } = req.body
+  const { messages, context, postId, provider, model, apiKey, systemPrompt } = req.body
 
-  if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: '缺少 messages 参数' })
-  if (!apiKey) return res.status(400).json({ error: '缺少 API Key' })
+  const validationError = validateMessages(messages)
+  if (validationError) return res.status(400).json({ error: validationError })
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.length > MAX_KEY_LENGTH) {
+    return res.status(400).json({ error: '缺少 API Key' })
+  }
 
   let finalSystemPrompt = systemPrompt || ''
   if (postId) {
@@ -112,7 +180,10 @@ export default async function handler(req, res) {
         const err = await response.json().catch(() => ({}))
         return res.status(response.status).json({ error: err?.error?.message || 'Key 无效，请检查' })
       }
-      return streamOpenAI(response, res, json => json.choices?.[0]?.delta?.content)
+      return streamOpenAI(response, res, {
+        content: json => json.choices?.[0]?.delta?.content,
+        reasoning: json => json.choices?.[0]?.delta?.reasoning_content,
+      })
 
     // ── Claude ────────────────────────────────────────────────────────────────
     } else if (provider === 'claude') {
@@ -146,27 +217,19 @@ export default async function handler(req, res) {
         const chunk = decoder.decode(value)
         for (const line of chunk.split('\n')) {
           if (!line.startsWith('data: ')) continue
-          try { const text = JSON.parse(line.slice(6))?.delta?.text; if (text) res.write(text) } catch {}
+          try {
+            const text = JSON.parse(line.slice(6))?.delta?.text
+            if (text) res.write(JSON.stringify({ c: text }) + '\n')
+          } catch { /* ignore */ }
         }
       }
       res.end()
 
-    // ── GLM (智谱 AI, OpenAI-compatible) ──────────────────────────────────────
-    } else if (provider === 'glm') {
-      const apiMessages = [
-        ...(finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }] : []),
-        ...messages.map(toOpenAIMessage),
-      ]
-      const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, stream: true, max_tokens: 4096, messages: apiMessages }),
+    // ── GLM / Kimi / Qwen (OpenAI-compatible) ───────────────────────────────────
+    } else if (provider in OPENAI_COMPATIBLE_ENDPOINTS) {
+      return handleOpenAICompatible(OPENAI_COMPATIBLE_ENDPOINTS[provider], {
+        messages, model, apiKey, finalSystemPrompt, res,
       })
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        return res.status(response.status).json({ error: err?.error?.message || 'Key 无效，请检查' })
-      }
-      return streamOpenAI(response, res, json => json.choices?.[0]?.delta?.content)
     }
 
   } catch (e) {

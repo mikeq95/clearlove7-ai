@@ -1,19 +1,23 @@
+import { Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import MainPage from './pages/MainPage'
-import ChatsPage from './pages/ChatsPage'
-import StarredPage from './pages/StarredPage'
-import SettingsPage from './pages/SettingsPage'
-import LoginPage from './pages/LoginPage'
+
+const ChatsPage = lazy(() => import('./pages/ChatsPage'))
+const StarredPage = lazy(() => import('./pages/StarredPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<MainPage />} />
-      <Route path="/chats" element={<ChatsPage />} />
-      <Route path="/starred" element={<StarredPage />} />
-      {/* Settings is open to all — users need it to enter their own API Key */}
-      <Route path="/settings" element={<SettingsPage />} />
-      <Route path="/sign-in" element={<LoginPage />} />
-    </Routes>
+    <Suspense fallback={null}>
+      <Routes>
+        <Route path="/" element={<MainPage />} />
+        <Route path="/chats" element={<ChatsPage />} />
+        <Route path="/starred" element={<StarredPage />} />
+        {/* Settings is open to all — users need it to enter their own API Key */}
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/sign-in" element={<LoginPage />} />
+      </Routes>
+    </Suspense>
   )
 }

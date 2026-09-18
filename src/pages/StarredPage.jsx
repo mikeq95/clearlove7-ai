@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PanelLeft, Star, MessageSquare, Trash2 } from 'lucide-react'
+import { PanelLeft, Star, Trash2 } from 'lucide-react'
 import { getStarredConversations, deleteConversation, toggleStarred } from '../lib/conversations'
+import Sidebar from '../components/Sidebar'
 
 export default function StarredPage() {
   const navigate = useNavigate()
-  const [starred, setStarred] = useState([])
+  const [starred, setStarred] = useState(() => getStarredConversations())
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
   const load = () => setStarred(getStarredConversations())
-  useEffect(() => { load() }, [])
 
   const handleOpen = (conv) => {
     if (conv.source === 'word' && conv.word) {
@@ -41,37 +41,7 @@ export default function StarredPage() {
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', fontFamily: 'var(--sans)', background: 'var(--bg)', overflow: 'hidden' }}>
 
-      {/* Sidebar */}
-      <div style={{
-        width: isSidebarOpen ? 260 : 0,
-        transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1)',
-        backgroundColor: 'var(--sidebar-bg)', flexShrink: 0,
-        borderRight: isSidebarOpen ? '1px solid var(--border)' : 'none', overflow: 'hidden'
-      }}>
-        <div style={{ width: 260, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, fontFamily: 'Georgia, serif', color: 'var(--text)' }}>Clearlove7</h2>
-            <button onClick={() => setIsSidebarOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)' }}>
-              <PanelLeft size={18} />
-            </button>
-          </div>
-          <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {[
-              { icon: <MessageSquare size={15} />, label: 'New chat', onClick: () => navigate('/') },
-              { icon: <MessageSquare size={15} />, label: 'Chats', onClick: () => navigate('/chats') },
-              { icon: <Star size={15} />, label: 'Starred', onClick: () => {}, active: true },
-            ].map(item => (
-              <div key={item.label} onClick={item.onClick}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px', borderRadius: 8, cursor: 'pointer', color: item.active ? 'var(--text)' : 'var(--text-light)', fontSize: 14, fontWeight: item.active ? 500 : 400, background: item.active ? 'var(--sidebar-hover)' : 'transparent' }}
-                onMouseEnter={e => { if (!item.active) e.currentTarget.style.background = 'var(--sidebar-hover)' }}
-                onMouseLeave={e => { if (!item.active) e.currentTarget.style.background = 'transparent' }}
-              >
-                {item.icon} {item.label}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <Sidebar isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
 
       {/* Main */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>

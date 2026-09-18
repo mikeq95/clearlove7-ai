@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, lazy, Suspense } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import ThinkingPanel from './ThinkingPanel'
+
+const CodeBlock = lazy(() => import('./CodeBlock'))
 
 function groupMessages(messages) {
   const groups = []
@@ -54,41 +55,20 @@ function formatTimestamp(ts) {
   return `${d.getMonth() + 1}月${d.getDate()}日 ${timeStr}`
 }
 
-function CopyButton({ code }) {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
-  }
-
-  return (
-    <button
-      onClick={handleCopy}
-      className={`absolute top-2 right-2 px-2.5 py-0.5 rounded-md border text-xs cursor-pointer transition-all duration-200 ${
-        copied
-          ? 'bg-[#e6f4ea] border-[#ddd] text-[#2e7d32]'
-          : 'bg-[#f5f5f5] border-[#ddd] text-[#555]'
-      }`}
-    >
-      {copied ? '已复制 ✓' : '复制'}
-    </button>
-  )
-}
-
 const markdownComponents = {
-  code({ node, inline, className, children, ...props }) {
+  // Strip react-markdown's default <pre> wrapper around fenced code — CodeBlock
+  // renders its own bordered card, and the global .markdown-body pre rule would
+  // otherwise double-box it.
+  pre({ children }) {
+    return children
+  },
+  code({ node: _, inline, className, children, ...props }) {
     const match = /language-(\w+)/.exec(className || '')
     const codeString = String(children).replace(/\n$/, '')
     return !inline && match ? (
-      <div className="relative">
-        <CopyButton code={codeString} />
-        <SyntaxHighlighter style={oneLight} language={match[1]} PreTag="div" {...props}>
-          {codeString}
-        </SyntaxHighlighter>
-      </div>
+      <Suspense fallback={<pre className="whitespace-pre-wrap">{codeString}</pre>}>
+        <CodeBlock language={match[1]} code={codeString} {...props} />
+      </Suspense>
     ) : (
       <code className={className} {...props}>{children}</code>
     )
@@ -126,6 +106,8 @@ export default function MessageList({ messages, loading, error, word, user, scro
               const isLastInGroup = mIdx === group.messages.length - 1
               const bubbleClass = isUser ? 'user-bubble' : 'ai-bubble'
               const tailClass = isLastInGroup ? ' has-tail' : ''
+              const hasReasoning = !isUser && !!msg.reasoning
+              const isStreamingContent = !isUser && loading && isLastInGroup && msg.content !== ''
 
               return (
                 <div
@@ -166,14 +148,21 @@ export default function MessageList({ messages, loading, error, word, user, scro
                       />
                     )}
 
-                    {!isUser && msg.content === '' && loading && isLastInGroup ? (
+                    {hasReasoning && (
+                      <ThinkingPanel
+                        reasoning={msg.reasoning}
+                        streaming={loading && isLastInGroup && msg.content === ''}
+                      />
+                    )}
+
+                    {!isUser && msg.content === '' && !hasReasoning && loading && isLastInGroup ? (
                       <div className="flex gap-1 py-1 px-0.5">
                         <span className="typing-dot" />
                         <span className="typing-dot" />
                         <span className="typing-dot" />
                       </div>
                     ) : msg.content ? (
-                      <div className="markdown-body">
+                      <div className={`markdown-body${isStreamingContent ? ' is-streaming' : ''}`}>
                         {isUser ? (
                           <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
                         ) : (

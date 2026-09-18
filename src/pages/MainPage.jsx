@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { PanelLeft, ArrowDown } from 'lucide-react'
 import { createConversation, findOrCreateWordConv, getMessages } from '../lib/conversations'
@@ -15,6 +15,7 @@ export default function MainPage() {
   const postId = searchParams.get('postId')
 
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useUser()
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -27,7 +28,7 @@ export default function MainPage() {
   const touchStartYRef = useRef(0)
   const [isNearBottom, setIsNearBottom] = useState(true) // state: drives the scroll-to-bottom button
 
-  const { messages, setMessages, loading, error, setError, sendToAPI } = useChat({
+  const { messages, setMessages, loading, error, setError, sendToAPI, stop } = useChat({
     word,
     context,
     postId,
@@ -94,6 +95,7 @@ export default function MainPage() {
       setMessages([])
       setError(null)
       currentConvId.current = null
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveConvId(null)
       return
     }
@@ -111,7 +113,22 @@ export default function MainPage() {
       setMessages([initial])
       sendToAPI([initial], convId)
     }
-  }, [word, postId]) // eslint-disable-line
+    // word/postId come from the URL; sendToAPI and setMessages/setError are stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [word, postId])
+
+  // Load a conversation handed off via router state (from ChatsPage/StarredPage "open").
+  // Runs after the word-reset effect above so it wins when both fire on mount.
+  useEffect(() => {
+    const convId = location.state?.convId
+    if (!convId) return
+    currentConvId.current = convId
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveConvId(convId)
+    isNearBottomRef.current = true
+    setIsNearBottom(true)
+    setMessages(getMessages(convId))
+  }, [location.state, setMessages])
 
   const handleSend = ({ text, image } = {}) => {
     if (!text?.trim() && !image) return
@@ -220,7 +237,7 @@ export default function MainPage() {
           </button>
         )}
 
-        <ChatInput loading={loading} onSend={handleSend} />
+        <ChatInput loading={loading} onSend={handleSend} onStop={stop} />
       </div>
     </div>
   )
